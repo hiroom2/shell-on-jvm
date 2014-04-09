@@ -1,0 +1,38 @@
+val = 0
+echo "init:  val = " $val
+
+inc10()
+{
+  ret = $1
+  i = 0
+  while [ $i < 10 ]
+  do
+    ret = $ret + 1
+    i = $i + 1
+  done
+  return $ret
+}
+
+dec10()
+{
+  ret = $1
+  i = 0
+  while [ $i < 10 ]
+  do
+    ret = $ret - 1
+    i = $i + 1
+  done
+  return $ret
+}
+
+inc10 $val
+val = $?
+echo "inc10: val = " $val
+
+inc10 $val
+val = $?
+echo "inc10: val = " $val
+
+dec10 $val
+val = $?
+echo "dec10: val = " $val

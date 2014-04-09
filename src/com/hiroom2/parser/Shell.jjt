@@ -1,0 +1,289 @@
+options{
+  STATIC=false;
+  MULTI=true;
+  VISITOR=true;
+  NODE_EXTENDS="com.hiroom2.parser.BaseNode";
+  UNICODE_INPUT=true;
+}
+
+PARSER_BEGIN(Parser)
+package com.hiroom2.gen;
+import com.hiroom2.parser.BaseNode;
+public class Parser {
+
+}
+PARSER_END(Parser)
+
+SKIP:
+{
+  " " | "\r" | "\t" | "\n"
+}
+
+TOKEN:
+{
+  <STR_START: "\""> : IN_STR
+}
+
+<IN_STR> MORE:
+{
+    <~["\"", "\\", "\n", "\r", "\t"]>
+  | <"\\\"" | "\\\\">
+    { image.deleteCharAt(image.length() - 2); }
+  | <"\\n" | "\\r">
+    { image.delete(image.length() - 2, image.length()); image.append("\n");}
+  | <"\\t">
+    { image.delete(image.length() - 2, image.length()); image.append("\t");}
+}
+
+<IN_STR> TOKEN:
+{
+  <STR: "\"">
+  {
+    image.deleteCharAt(image.length() - 1);
+    matchedToken.image = image.toString();
+  }
+  : DEFAULT
+}
+
+TOKEN:
+{
+    < LBLOCK: "{" >
+  | < RBLOCK: "}" >
+  | < LPAREN: "(" >
+  | < RPAREN: ")" >
+  | < LBRACKET: "[" >
+  | < RBRACKET: "]" >
+  | < IF: "if" >
+  | < THEN: "then" >
+  | < ELIF: "elif" >
+  | < ELSE: "else" >
+  | < FI: "fi" >
+  | < FOR: "for" >
+  | < WHILE: "while" >
+  | < DO: "do" >
+  | < DONE: "done" >
+  | < BREAK: "break" >
+  | < RETURN: "return" >
+  | < ID: (["a"-"z"] | ["A"-"Z"]) (["a"-"z"] | ["A"-"Z"] | ["0"-"9"])* >
+  | < REF: "$" >
+  | < MUL: "*" >
+  | < DIV: "/" >
+  | < ADD: "+" >
+  | < SUB: "-" >
+  | < ASSIGN: "=" >
+  | < GE: ">=" >
+  | < GT: ">" >
+  | < LE: "<=" >
+  | < LT: "<" >
+  | < EQ: "==" >
+  | < NE: "!=" >
+  | < QUESTION: "?" >
+  | < NUM: (["0"-"9"])+ >
+}
+
+ASTStart Start():
+{}
+{
+  Stmts() <EOF> { return jjtThis; }
+}
+
+void Stmts():
+{}
+{
+  (LOOKAHEAD(4) Func() | Stmt())+
+}
+
+void Func():
+{ Token t; }
+{
+  t = <ID> <LPAREN> <RPAREN>
+  <LBLOCK>
+    Block()
+  <RBLOCK>
+  {
+    jjtThis.image = t.image;
+  } 
+}
+
+void Block():
+{}
+{
+  (Stmt())+
+}
+
+void Stmt():
+{}
+{
+    IfStmt()
+  | WhileStmt()
+  | BreakStmt()
+  | LOOKAHEAD(2) ReturnStmt()
+  | LOOKAHEAD(2) Expr()
+  | LOOKAHEAD(2) Call()
+}
+
+void IfStmt():
+{}
+{
+  <IF> <LBRACKET> Cond() <RBRACKET>
+  <THEN>
+    Block()
+  [
+  (
+  <ELIF> <LBRACKET> Cond() <RBRACKET>
+  <THEN>
+    Block()
+  )+
+  ]
+  [
+  <ELSE>
+    Block()
+  ] 
+  <FI>
+}
+
+void WhileStmt():
+{}
+{
+  <WHILE> <LBRACKET> Cond() <RBRACKET> <DO> Block() <DONE>
+}
+
+void BreakStmt():
+{}
+{
+  <BREAK>
+}
+
+void ReturnStmt():
+{}
+{
+    LOOKAHEAD(2) <RETURN> Value()
+  | <RETURN>
+}
+
+void Cond():
+{}
+{
+  LOOKAHEAD(3) Comp() | Value()
+}
+
+void Comp():
+{ Token t; }
+{
+  BinOpAdd()
+  (
+      t = <GE>
+    | t = <GT>
+    | t = <LE>
+    | t = <LT>
+    | t = <EQ>
+    | t = <NE>
+  )
+  BinOpAdd()
+  {
+    jjtThis.image = t.image;
+  }
+}
+
+void Expr():
+{}
+{
+  BinOp()
+}
+
+void Call():
+{ Token t; }
+{
+  t = <ID> (Value())* { jjtThis.image = t.image; }
+}
+
+void BinOp():
+{}
+{
+  BinOpAssign()
+}
+
+void BinOpAssign():
+{}  
+{
+  Identifier() <ASSIGN> BinOpAdd()
+}
+
+void Identifier():
+{ Token t; }
+{
+  t = <ID> { jjtThis.image = t.image; }
+}
+
+void BinOpAdd():
+{ Token t; }
+{
+  BinOpMul()
+  (
+    (
+        t = <ADD>
+      | t = <SUB>
+    )
+    BinOpMul()
+    {
+      jjtThis.image = t.image;
+    }
+  )*
+}
+
+void BinOpMul():
+{ Token t; }
+{
+  Value()
+  (
+    (
+        t = <MUL>
+      | t = <DIV>
+    )
+    Value()
+    {
+      jjtThis.image = t.image;
+    }
+  )*
+}
+
+void Value():
+{}
+{
+    Integer()
+  | LOOKAHEAD(2) RefVar()
+  | LOOKAHEAD(2) RefArg()
+  | LOOKAHEAD(2) RefRet()
+  | String()
+  | <LPAREN> BinOpAdd() <RPAREN>
+}
+
+void Integer():
+{ Token t; }
+{
+  t = <NUM> { jjtThis.image = t.image; }
+}
+
+void RefVar():
+{ Token t; }
+{
+  <REF> t = <ID> { jjtThis.image = t.image; }
+}
+
+void RefArg():
+{ Token t; }
+{
+  <REF> t = <NUM> { jjtThis.image = t.image; }
+}
+
+void RefRet():
+{}
+{
+  <REF> <QUESTION>
+}
+
+void String():
+{ Token t;}
+{
+  <STR_START> t = <STR> { jjtThis.image = t.image;}
+}
